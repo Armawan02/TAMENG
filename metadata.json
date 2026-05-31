@@ -1,0 +1,6 @@
+{
+  "name": "Tameng.",
+  "description": "AI-powered scanner for detecting scams, social engineering, and psychological manipulation in texts and screenshots.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

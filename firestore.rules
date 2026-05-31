@@ -1,0 +1,55 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helpers
+    function isValidId(id) { 
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); 
+    }
+    function incoming() { return request.resource.data; }
+    function isSignedIn() { return request.auth != null; }
+    function isVerified() { return isSignedIn() && request.auth.token.email_verified == true; }
+    
+    function isValidAlert(data) {
+      let requiredKeys = ['type', 'title', 'desc', 'createdAt', 'reportsCount', 'authorId'];
+      return data.keys().hasAll(requiredKeys) &&
+             // Allow optional keys: imageUrl, status, authorName, isAnonymous
+             data.keys().hasOnly(['type', 'title', 'desc', 'createdAt', 'reportsCount', 'authorId', 'imageUrl', 'status', 'authorName', 'isAnonymous']) &&
+             data.type is string && data.type.size() <= 20 &&
+             data.title is string && data.title.size() <= 150 && data.title.size() > 0 &&
+             data.desc is string && data.desc.size() <= 1000 && data.desc.size() > 0 &&
+             data.reportsCount is number && data.reportsCount >= 0 &&
+             data.authorId is string && data.authorId == request.auth.uid &&
+             (data.keys().hasAny(['imageUrl']) ? (data.imageUrl is string && data.imageUrl.size() <= 1000) : true) &&
+             (data.keys().hasAny(['status']) ? (data.status is string && data.status.size() <= 20) : true) &&
+             (data.keys().hasAny(['authorName']) ? (data.authorName is string && data.authorName.size() <= 100) : true) &&
+             (data.keys().hasAny(['isAnonymous']) ? (data.isAnonymous is bool) : true);
+    }
+
+    match /users/{userId} {
+      // Anyone can read for now (demo purpose, or restrict to auth later)
+      allow read, write: if true;
+    }
+
+    match /alerts/{alertId} {
+      // Anyone can read alerts
+      allow read: if true;
+      
+      // Verified users can create alerts
+      allow create: if isVerified() && 
+                    isValidId(alertId) && 
+                    isValidAlert(incoming()) && 
+                    incoming().createdAt == request.time &&
+                    incoming().reportsCount == 1; // start with 1 report
+
+      // Allow updates for authority mode simulation (in production, strictly limit to admin/police roles)
+      allow update: if true;
+      allow delete: if false;
+    }
+  }
+}
